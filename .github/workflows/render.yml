@@ -1,90 +1,81 @@
-name: Render Hydraulic Press
+name: Render Hydraulic Press Short
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
+    inputs:
+      mode:
+        description: "stills = 4 stills | test = first 90 frames | preview = full half-res | full = final"
+        type: choice
+        default: test
+        options: [stills, test, preview, full]
+      gl:
+        description: "WebGL backend"
+        type: choice
+        default: angle
+        options: [angle, swangle, swiftshader]
+      concurrency:
+        description: "Parallel browser tabs"
+        type: choice
+        default: "2"
+        options: ["1", "2", "3", "4"]
 
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 355
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Extract project ZIP
-        run: |
-          unzip -o hydraulic_press_remotion_project.zip -d project
-          find project -name package.json -print
-
-      - name: Locate project directory
-        run: |
-          PROJECT_DIR=$(find "$GITHUB_WORKSPACE/project" -name package.json -printf '%h\n' | head -n 1)
-          if [ -z "$PROJECT_DIR" ]; then
-            echo "ERROR: package.json not found inside ZIP"
-            exit 1
-          fi
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Project directory: $PROJECT_DIR"
+      - uses: actions/checkout@v4
 
       - name: Install system libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            ffmpeg \
-            libnss3 \
-            libatk1.0-0 \
-            libatk-bridge2.0-0 \
-            libcups2 \
-            libdrm2 \
-            libxkbcommon0 \
-            libxcomposite1 \
-            libxdamage1 \
-            libxfixes3 \
-            libxrandr2 \
-            libgbm1 \
-            libasound2t64 \
-            libpangocairo-1.0-0 \
-            libpango-1.0-0 \
-            libcairo2 \
-            libatspi2.0-0 \
-            libgtk-3-0
+          sudo apt-get install -y ffmpeg libnss3 libdbus-1-3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64 libpangocairo-1.0-0 libpango-1.0-0 libcairo2 libatspi2.0-0 libgtk-3-0 libgl1-mesa-dri libegl1
 
-      - name: Install Node dependencies
+      - name: Extract uploaded project ZIP
+        run: |
+          unzip -q hydraulic_press_remotion_project.zip -d _src
+          PROJECT_DIR="$(dirname "$(find _src -maxdepth 4 -name package.json | head -1)")"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Using project: $PROJECT_DIR"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: npm install --no-audit --no-fund
 
-      - name: Prepare Remotion browser
+      - name: Ensure Remotion browser
         working-directory: ${{ env.PROJECT_DIR }}
         run: npx remotion browser ensure
 
-      - name: Check render script
+      - name: Type check
         working-directory: ${{ env.PROJECT_DIR }}
-        run: npm run
+        run: npx tsc --noEmit
 
-      - name: Render video
+      - name: Render selected mode
         working-directory: ${{ env.PROJECT_DIR }}
-        run: npm run render
-
-      - name: Find rendered MP4
+        env:
+          MODE: ${{ inputs.mode || 'test' }}
+          GL: ${{ inputs.gl || 'angle' }}
+          CONCURRENCY: ${{ inputs.concurrency || '2' }}
         run: |
-          find "$PROJECT_DIR" -type f -name "*.mp4" -print
+          mkdir -p out
+          case "$MODE" in
+            stills) npm run stills ;;
+            test) npx remotion render src/index.ts HydraulicPress out/hydraulic_press_test.mp4 --frames=0-89 --gl="$GL" --concurrency="$CONCURRENCY" --crf=19 ;;
+            preview) npx remotion render src/index.ts HydraulicPress out/hydraulic_press_preview.mp4 --scale=0.5 --gl="$GL" --concurrency="$CONCURRENCY" --crf=19 ;;
+            full) npx remotion render src/index.ts HydraulicPress out/hydraulic_press_final.mp4 --codec=h264 --gl="$GL" --concurrency="$CONCURRENCY" --crf=19 ;;
+          esac
 
-      - name: Upload video artifact
+      - name: Upload render
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: hydraulic-press-final-video
-          path: |
-            ${{ env.PROJECT_DIR }}/out/*.mp4
-            ${{ env.PROJECT_DIR }}/*.mp4
-          if-no-files-found: error
+          name: hydraulic-press-${{ inputs.mode || 'test' }}
+          path: ${{ env.PROJECT_DIR }}/out/*
+          if-no-files-found: warn
           retention-days: 14
           
