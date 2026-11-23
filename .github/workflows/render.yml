@@ -1,4 +1,3 @@
-
 name: Render Hydraulic Press
 
 on:
@@ -20,7 +19,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
       - name: Extract project ZIP
         run: |
@@ -68,11 +66,11 @@ jobs:
         working-directory: ${{ env.PROJECT_DIR }}
         run: npx remotion browser ensure
 
-      - name: Show available render script
+      - name: Check render script
         working-directory: ${{ env.PROJECT_DIR }}
         run: npm run
 
-      - name: Render Hydraulic Press video
+      - name: Render video
         working-directory: ${{ env.PROJECT_DIR }}
         run: npm run render
 
@@ -80,7 +78,7 @@ jobs:
         run: |
           find "$PROJECT_DIR" -type f -name "*.mp4" -print
 
-      - name: Upload rendered video
+      - name: Upload video artifact
         uses: actions/upload-artifact@v4
         with:
           name: hydraulic-press-final-video
