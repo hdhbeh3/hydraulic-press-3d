@@ -4,7 +4,8 @@ name: Render Hydraulic Press
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
   render:
@@ -19,19 +20,47 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
       - name: Extract project ZIP
         run: |
           unzip -o hydraulic_press_remotion_project.zip -d project
-          cd project/hydraulic_press_project
-          echo "PROJECT_DIR=$GITHUB_WORKSPACE/project/hydraulic_press_project" >> $GITHUB_ENV
+          find project -name package.json -print
+
+      - name: Locate project directory
+        run: |
+          PROJECT_DIR=$(find "$GITHUB_WORKSPACE/project" -name package.json -printf '%h\n' | head -n 1)
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "ERROR: package.json not found inside ZIP"
+            exit 1
+          fi
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Project directory: $PROJECT_DIR"
 
       - name: Install system libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2 libpangocairo-1.0-0 libpango-1.0-0 libcairo2 libatspi2.0-0 libgtk-3-0
+          sudo apt-get install -y \
+            ffmpeg \
+            libnss3 \
+            libatk1.0-0 \
+            libatk-bridge2.0-0 \
+            libcups2 \
+            libdrm2 \
+            libxkbcommon0 \
+            libxcomposite1 \
+            libxdamage1 \
+            libxfixes3 \
+            libxrandr2 \
+            libgbm1 \
+            libasound2t64 \
+            libpangocairo-1.0-0 \
+            libpango-1.0-0 \
+            libcairo2 \
+            libatspi2.0-0 \
+            libgtk-3-0
 
-      - name: Install dependencies
+      - name: Install Node dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: npm install --no-audit --no-fund
 
@@ -39,15 +68,25 @@ jobs:
         working-directory: ${{ env.PROJECT_DIR }}
         run: npx remotion browser ensure
 
-      - name: Render video
+      - name: Show available render script
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: npm run
+
+      - name: Render Hydraulic Press video
         working-directory: ${{ env.PROJECT_DIR }}
         run: npm run render
 
-      - name: Upload MP4 artifact
+      - name: Find rendered MP4
+        run: |
+          find "$PROJECT_DIR" -type f -name "*.mp4" -print
+
+      - name: Upload rendered video
         uses: actions/upload-artifact@v4
         with:
           name: hydraulic-press-final-video
-          path: project/hydraulic_press_project/out/hydraulic_press_final.mp4
+          path: |
+            ${{ env.PROJECT_DIR }}/out/*.mp4
+            ${{ env.PROJECT_DIR }}/*.mp4
           if-no-files-found: error
           retention-days: 14
           
