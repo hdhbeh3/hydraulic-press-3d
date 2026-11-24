@@ -58,10 +58,11 @@ jobs:
       - name: Extract latest project ZIP
         shell: bash
         run: |
-          ZIP_FILE="hydraulic_press_remotion_project_1 (1).zip"
+          ZIP_FILE="hydraulic_press_remotion_project_2.zip"
 
           if [ ! -f "$ZIP_FILE" ]; then
             echo "ERROR: ZIP not found: $ZIP_FILE"
+            echo "Files in repository:"
             ls -lah
             exit 1
           fi
@@ -69,8 +70,7 @@ jobs:
           mkdir -p _src
           unzip -q -o "$ZIP_FILE" -d _src
 
-          PACKAGE_FILE=$(find _src -maxdepth 6 \
-            -name package.json -print -quit)
+          PACKAGE_FILE=$(find _src -name package.json -print -quit)
 
           if [ -z "$PACKAGE_FILE" ]; then
             echo "ERROR: package.json not found inside ZIP"
@@ -81,7 +81,7 @@ jobs:
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-          echo "Using corrected project: $PROJECT_DIR"
+          echo "Using project: $PROJECT_DIR"
           ls -lah "$PROJECT_DIR"
 
       - name: Install Node dependencies
@@ -114,7 +114,6 @@ jobs:
           echo "Render mode: $MODE"
 
           case "$MODE" in
-
             test)
               npx remotion render \
                 src/index.ts HydraulicPress \
@@ -146,7 +145,7 @@ jobs:
           esac
 
       - name: Upload rendered files
-        if: always()
+        if: always() && env.PROJECT_DIR != ''
         uses: actions/upload-artifact@v4
         with:
           name: hydraulic-press-${{ inputs.mode }}
