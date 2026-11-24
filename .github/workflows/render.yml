@@ -55,40 +55,33 @@ jobs:
             libgl1-mesa-dri \
             libegl1
 
-      - name: Locate and extract project
+      - name: Extract latest project ZIP
         shell: bash
         run: |
-          ZIP_FILE="hydraulic_press_remotion_project_1.zip"
+          ZIP_FILE="hydraulic_press_remotion_project_1 (1).zip"
 
-          if [ -f "package.json" ]; then
-            PROJECT_DIR="$GITHUB_WORKSPACE"
-            echo "Project already extracted in repository root."
-
-          else
-            if [ ! -f "$ZIP_FILE" ]; then
-              echo "ERROR: ZIP not found: $ZIP_FILE"
-              echo "Repository files:"
-              ls -lah
-              exit 1
-            fi
-
-            mkdir -p _src
-            unzip -q "$ZIP_FILE" -d _src
-
-            PACKAGE_FILE=$(find _src -maxdepth 6 \
-              -name package.json -print -quit)
-
-            if [ -z "$PACKAGE_FILE" ]; then
-              echo "ERROR: package.json not found inside ZIP."
-              exit 1
-            fi
-
-            PROJECT_DIR="$(dirname "$PACKAGE_FILE")"
+          if [ ! -f "$ZIP_FILE" ]; then
+            echo "ERROR: ZIP not found: $ZIP_FILE"
+            ls -lah
+            exit 1
           fi
+
+          mkdir -p _src
+          unzip -q -o "$ZIP_FILE" -d _src
+
+          PACKAGE_FILE=$(find _src -maxdepth 6 \
+            -name package.json -print -quit)
+
+          if [ -z "$PACKAGE_FILE" ]; then
+            echo "ERROR: package.json not found inside ZIP"
+            exit 1
+          fi
+
+          PROJECT_DIR="$(dirname "$PACKAGE_FILE")"
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-          echo "Project directory: $PROJECT_DIR"
+          echo "Using corrected project: $PROJECT_DIR"
           ls -lah "$PROJECT_DIR"
 
       - name: Install Node dependencies
@@ -104,12 +97,12 @@ jobs:
         working-directory: ${{ env.PROJECT_DIR }}
         run: npx remotion browser ensure
 
-      - name: Check project
+      - name: Project checks
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           npm run check
           npm test
-          npx tsc --noEmit
+          npm run typecheck
 
       - name: Render selected mode
         working-directory: ${{ env.PROJECT_DIR }}
